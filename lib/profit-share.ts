@@ -9,7 +9,7 @@ export type SharePosition = {
   sharePaid?: number;
 };
 export type Follow = { thesisId: string; active: boolean; acceptedAt: number };
-export function hasCreatorShare(
+export function canFollowTake(
   thesis: Pick<Thesis, "owner" | "example">,
   userId: string | undefined,
 ) {

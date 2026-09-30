@@ -1,4 +1,4 @@
-import {DEFAULT_PERFORMANCE_FEE_BPS,MAX_PERFORMANCE_FEE_BPS,FEE_POLICY} from '@/lib/performance-fees';
+import {DEFAULT_PERFORMANCE_FEE_BPS,FEE_POLICY} from '@/lib/performance-fees';
 import {retireSentiment} from '@/lib/retire-sentiment';
 import {hasPerps,validateExecution} from '@/lib/creator-execution';
 import {loadCreatorCoverage} from '@/lib/perps';
@@ -39,7 +39,6 @@ const alloc = z
     "Allocations must total 100% with unique tokens.",
   );
 const thesisSchema = z.object({
-  performanceFeeBps:z.number().int().min(0).max(MAX_PERFORMANCE_FEE_BPS).default(DEFAULT_PERFORMANCE_FEE_BPS),
   exitPlan:exitPlanSchema.optional(),
   id: z.string().max(80),
   title: z.string().min(3).max(90),
@@ -270,6 +269,9 @@ export async function POST(req: Request) {
       if(t.exitPlan)validateExitPlan(t.exitPlan,t);
       const thesis = {
         ...t,
+        // Creators no longer set fees. Keep an existing call's platform rate;
+        // untrusted/older clients cannot restore creator profit sharing.
+        performanceFeeBps: existing?.performanceFeeBps ?? DEFAULT_PERFORMANCE_FEE_BPS,
         executionVersion:1 as const,
         counter,
         engine: verifiedResearch ? "ai" : "curated",
@@ -353,7 +355,7 @@ export async function POST(req: Request) {
       return Response.json(
         {
           error:
-            "Fees have changed. Refresh and review the entry and published performance fees before confirming.",
+            "Fees have changed. Refresh and review the entry and platform performance fees before confirming.",
         },
         { status: 409 },
       );

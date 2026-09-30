@@ -1,4 +1,4 @@
-import {startFeeTerms,readFeeTerms,settlePositionFees} from './performance-fees';
+import {FEE_POLICY,startFeeTerms,readFeeTerms,settlePositionFees} from './performance-fees';
 import {hasPerps,creatorConfigKey,validateExecution,readExecutionState,startExecution,addExecution,executionTotals,scaleExecution,alignExecutionExits,markExecution} from './creator-execution';
 import {loadCreatorCoverage} from './perps';
 import {validateCounterOutcomes} from './counter-generation';
@@ -11,7 +11,7 @@ import {
 import { tradingFee } from "./trading-fees";
 import type { Thesis } from "./data";
 import {externalStrategy,stockScenarioPct} from './external-strategy';
-import { hasCreatorShare } from "./profit-share";
+import { canFollowTake } from "./profit-share";
 import {isTakeLive,LIVE_TAKE_GUARD} from './take-lifecycle';
 export class TradeError extends Error {
   constructor(
@@ -142,8 +142,8 @@ export async function paperTrade(
     platformFee = 0,
     platformProfitFee = 0,
     realizedProfit = 0;
-  let eligible = p?.share_eligible || 0,
-    creator = p?.share_creator || null,
+  let eligible = 0,
+    creator: string | null = null,
     shareRealized = p?.share_realized || 0,
     shareHighWater = p?.share_high_water || 0,
     sharePaid = p?.share_paid || 0,
@@ -254,11 +254,6 @@ export async function paperTrade(
       else if(!execution&&executionMode==='perps')notional=Math.round(notional*nextAmount/scenarioValue);
     }
   }
-  if (fee && (!creator || creator === userId))
-    throw new TradeError(
-      "This creator attribution needs to be checked before selling.",
-      409,
-    );
   if (
     !Number.isSafeInteger(notional) ||
     notional < 0 ||
@@ -288,7 +283,7 @@ export async function paperTrade(
         fee,
         platformFee,
         platformProfitFee,
-        feeTerms?'v3':'v2',
+        FEE_POLICY,
         feeTerms,
         requestKey,
         operation,
@@ -339,49 +334,6 @@ export async function paperTrade(
       .bind(delta, userId, id, operation),
   ];
   if(scenarioValue!==null&&triggered)statements.unshift(db.prepare("INSERT INTO orders (id,user_id,thesis_id,side,amount,operation_id,created_at,execution_mode,leverage) SELECT ?,?,?,'scenario',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM accounts WHERE user_id=? AND revision=?) AND NOT EXISTS(SELECT 1 FROM orders WHERE id=?)").bind(crypto.randomUUID(),userId,thesis.id,scenarioValue,operation,now,executionMode,leverage,userId,account.revision,id));
-  if (fee > 0 && creator) {
-    statements.push(
-      db
-        .prepare(
-          `INSERT INTO creator_earnings (order_id,creator_id,follower_id,thesis_id,amount,realized_profit,created_at) SELECT ?,?,?,?,?,?,? WHERE ${ownOperation}`,
-        )
-        .bind(
-          id,
-          creator,
-          userId,
-          thesis.id,
-          fee,
-          realizedProfit,
-          now,
-          id,
-          operation,
-        ),
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO accounts (user_id) SELECT ? WHERE ${ownOperation}`,
-        )
-        .bind(creator, id, operation),
-      db
-        .prepare(
-          `UPDATE accounts SET balance=balance+?,revision=revision+1 WHERE user_id=? AND ${ownOperation}`,
-        )
-        .bind(fee, creator, id, operation),
-      db
-        .prepare(
-          `INSERT INTO orders (id,user_id,thesis_id,side,amount,operation_id,created_at) SELECT ?,?,?,'creator-income',?,?,? WHERE ${ownOperation}`,
-        )
-        .bind(
-          crypto.randomUUID(),
-          creator,
-          thesis.id,
-          fee,
-          operation,
-          now,
-          id,
-          operation,
-        ),
-    );
-  }
   await db.batch(statements);
   const saved = await db
     .prepare(
@@ -416,7 +368,7 @@ export async function followTake(
   active: boolean,
   _accepted?: boolean,
 ) {
-  if (!hasCreatorShare(thesis, userId))
+  if (!canFollowTake(thesis, userId))
     throw new TradeError("Follow a community take by another creator.");
   if (active) {
     if(!isTakeLive(thesis))throw new TradeError('This take is closed to new followers.',409);

@@ -7,7 +7,6 @@ import { PnlShareDialog } from '@/components/pnl/pnl-share-dialog';
 import { InviteManager } from '@/components/invites/invite-manager';
 import type { TradePnl } from '@/lib/trade-pnl';
 import { Users, Share2 } from "lucide-react";
-import { CreatorEarnings } from "@/components/profit-share";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowDownLeft,
@@ -251,15 +250,9 @@ function PaperProfileView({
         refreshing={refreshing}
       />
 
-      {(theses.some(t=>t.owner===user.id&&t.visibility==='public')||data.orders.some(o=>o.side==='creator-income'))&&<ProductDisclosure title="Creator earnings" meta="Performance fees">      <CreatorEarnings
-        theses={theses}
-        onOpen={onOpen}
-        revision={data.checkedAt}
-      />
-</ProductDisclosure>}
       <PaperActivity orders={data.orders} pnl={data.tradePnl} onShare={orderId=>setShareTarget({kind:'trade',orderId})} theses={theses} onOpen={onOpen} />
       {shareTarget&&<PnlShareDialog {...shareTarget} onClose={()=>setShareTarget(null)}/>}
-      <details className="profile-methodology"><summary>How these numbers work</summary><p>Demo returns come from saved trades and simulated market moves, net of fees. Deposits and creator earnings do not count as investment returns. Archived prediction cash flows are excluded from investment returns. Unsettled stakes were refunded. Buys show P&L across sold and remaining exposure. Sells show realized P&L using average position cost, after recorded fees and profit shares.</p></details>
+      <details className="profile-methodology"><summary>How these numbers work</summary><p>Demo returns come from saved trades and simulated market moves, net of fees. Deposits and past creator earnings do not count as investment returns. Archived prediction cash flows are excluded from investment returns. Unsettled stakes were refunded. Buys show P&L across sold and remaining exposure. Sells show realized P&L using average position cost, after recorded fees and profit shares.</p></details>
     </>
   );
 }
@@ -770,7 +763,7 @@ function PaperActivity({
                 sell: order.executionMode === "perps" ? "Closed demo perps" : "Sold",
                 scenario: "Market scenario",
                 "rule-exit": order.executionReason === "liquidation" ? "Demo liquidation" : "Exit rule triggered",
-                "creator-income": "Creator earnings",
+                "creator-income": "Past creator earnings",
                 "demo-fund": "Demo deposit",
                 "prediction-stake": "Archived prediction stake",
                 "prediction-payout": "Archived prediction payout",

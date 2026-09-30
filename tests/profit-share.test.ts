@@ -1,11 +1,11 @@
-import {feeRates,feePercent,selectedFeeBps,startFeeTerms,settlePositionFees,readFeeTerms} from '../lib/performance-fees';
+import {feeRates,feePercent,selectedFeeBps,startFeeTerms,settlePositionFees,readFeeTerms,positionFeeRates} from '../lib/performance-fees';
 import {creatorConfigKey} from '../lib/creator-execution';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import { paperTrade, followTake } from "../lib/paper-trading";
-import { settleProfitShare, hasCreatorShare } from "../lib/profit-share";
+import { settleProfitShare, canFollowTake } from "../lib/profit-share";
 import { EXAMPLES, type Thesis } from "../lib/data";
 import { paperPerformance, type PaperOrder } from "../lib/performance";
 import { paperRankings } from "../lib/leaderboard";
@@ -110,7 +110,7 @@ function fixture() {
   };
 }
 
-test("0.5% of profit, partial cost basis, fractional cents, and legacy eligibility", () => {
+test("historical profit-share arithmetic preserves partial cost basis and fractional cents", () => {
   const p = { amount: 120000, invested: 100000, shareEligible: true };
   const first = settleProfitShare(p, 60000);
   assert.equal(first.realizedProfit, 10000);
@@ -145,26 +145,26 @@ test("0.5% of profit, partial cost basis, fractional cents, and legacy eligibili
   );
   assert.throws(() => settleProfitShare({ amount: 0, invested: 0 }, 0));
 });
-test("server attributes community takes to their owner, excluding self and examples", () => {
-  assert.equal(hasCreatorShare(thesis, "follower"), true);
-  assert.equal(hasCreatorShare(thesis, "creator"), false);
+test("community following remains available without creator fees", () => {
+  assert.equal(canFollowTake(thesis, "follower"), true);
+  assert.equal(canFollowTake(thesis, "creator"), false);
   assert.equal(
-    hasCreatorShare({ ...thesis, example: true }, "follower"),
+    canFollowTake({ ...thesis, example: true }, "follower"),
     false,
   );
 });
-test("all investors pay the selected fee independently of free follow and unfollow", async () => {
+test("following and unfollowing never enables creator profit charges", async () => {
   const f=fixture();
   await f.trade('buy',100000,{acceptProfitShare:false});
-  assert.equal(f.get('positions').share_creator,'creator');
+  assert.equal(f.get('positions').share_creator,null);
   assert.equal(f.get('thesis_follows'),undefined);
   await followTake(f.db,'follower',thesis,true,false);
   await followTake(f.db,'follower',thesis,false,false);
   assert.equal(f.get('thesis_follows').active,0);
   await f.trade('simulate',1,{change:20});
-  assert.equal((await f.trade('sell',119940)).creatorFee,299);
+  assert.equal((await f.trade('sell',119940)).creatorFee,0);
 });
-test("profitable sale transfers only the fee, reconciles accounts and replays once", async () => {
+test("profitable sales pay only platform fees and replay without any creator payout", async () => {
   const f = fixture();
   await f.trade("buy", 100000);
   await f.trade("simulate", 1, { change: 20 });
@@ -174,16 +174,16 @@ test("profitable sale transfers only the fee, reconciles accounts and replays on
   );
   const id = crypto.randomUUID();
   const sale = await f.trade("sell", 119940, { id });
-  assert.equal(sale.creatorFee, 299);
+  assert.equal(sale.creatorFee, 0);
   assert.equal(sale.tradingFee, 0);
   assert.equal(sale.platformProfitFee, 99);
-  assert.equal(f.get("accounts").balance, 1019542);
-  assert.equal(f.get("accounts", "creator").balance, 1000299);
+  assert.equal(f.get("accounts").balance, 1019841);
+  assert.equal(f.get("accounts", "creator").balance, 1000000);
   assert.equal(f.get("positions").amount, 0);
-  assert.equal((await f.trade("sell", 119940, { id })).creatorFee, 299);
+  assert.equal((await f.trade("sell", 119940, { id })).creatorFee, 0);
   assert.equal(
     f.sqlite.prepare("SELECT COUNT(*) n FROM creator_earnings").get()!.n,
-    1,
+    0,
   );
   await assert.rejects(f.trade("sell", 100000, { id }), /already used/);
   await assert.rejects(
@@ -201,13 +201,13 @@ test("loss carryforward and high-water mark survive closing, unfollowing and re-
   assert.equal((await round(-20)).creatorFee, 0);
   await followTake(f.db, "follower", thesis, false, false);
   assert.equal((await round(10)).creatorFee, 0);
-  assert.equal((await round(30)).creatorFee, 297);
+  assert.equal((await round(30)).creatorFee, 0);
   assert.equal((await round(-10)).creatorFee, 0);
-  assert.equal((await round(20)).creatorFee, 149);
-  assert.equal((await round(10)).creatorFee, 149);
-  assert.equal(f.get("positions").share_paid, 595);
+  assert.equal((await round(20)).creatorFee, 0);
+  assert.equal((await round(10)).creatorFee, 0);
+  assert.equal(f.get("positions").share_paid, 0);
 });
-test("legacy positions retain their exemption until closed; a new creator entry adopts sharing", async () => {
+test("legacy exempt positions and new entries charge no creator fees", async () => {
   const f = fixture();
   f.sqlite
     .prepare(
@@ -222,15 +222,15 @@ test("legacy positions retain their exemption until closed; a new creator entry 
   assert.equal((await f.trade("sell", 110000)).creatorFee, 0);
   await f.trade("buy", 100000);
   await f.trade("simulate", 1, { change: 10 });
-  assert.equal((await f.trade("sell", 109945)).creatorFee, 149);
+  assert.equal((await f.trade("sell", 109945)).creatorFee, 0);
 });
-test("take-profit exits share profit; stop-loss charges no profit share, and own takes have no creator share", async () => {
+test("automatic exits and own investments never charge creator fees", async () => {
   const f = fixture();
   await f.trade("buy", 100000);
   f.sqlite.prepare("UPDATE positions SET execution_state=NULL,take_profit=10,stop_loss=10").run();
   const exit = await f.trade("simulate", 1, { change: 20 });
   assert.equal(exit.triggered, true);
-  assert.equal(exit.creatorFee, 299);
+  assert.equal(exit.creatorFee, 0);
   assert.equal(exit.tradingFee, 0);
   assert.equal(f.get("positions").amount, 0);
   await f.trade("buy", 100000);
@@ -259,11 +259,11 @@ test("concurrent buys cannot overwrite holdings or double-spend; same request is
   assert.equal(f.get("positions").amount, 199900);
   assert.equal(f.get("accounts").balance, 800000);
 });
-test("an interrupted payout rolls back sale, position, fee and both accounts", async () => {
+test("an interrupted sale rolls back position, platform fee and investor cash", async () => {
   const f = fixture();
   await f.trade("buy", 100000);
   await f.trade("simulate", 1, { change: 20 });
-  f.fail(6);
+  f.fail(2);
   await assert.rejects(f.trade("sell", 119940), /Injected/);
   assert.equal(f.get("positions").amount, 119940);
   assert.equal(f.get("accounts").balance, 900000);
@@ -352,39 +352,39 @@ test("max spend and a flat round trip charge only the entry fee without overdraw
   );
 });
 
-test("partial sales reconcile fees, cost basis, creator share, profile, and ranking", async () => {
+test("partial sales reconcile platform fees, cost basis, profile and ranking without creator charges", async () => {
   const f = fixture();
   await f.trade("buy", 100000);
   const move = await f.trade("simulate", 1, { change: 20 });
   assert.equal(move.tradingFee, 0);
   const first = await f.trade("sell", 59970);
   assert.equal(first.tradingFee, 0);
-  assert.equal(first.creatorFee, 149);
+  assert.equal(first.creatorFee, 0);
   assert.equal(f.get("positions").amount, 59970);
   assert.equal(f.get("positions").invested, 50000);
   await f.trade("sell", 59970);
-  assert.equal(f.get("accounts").balance, 1019542);
+  assert.equal(f.get("accounts").balance, 1019841);
   const orders = f.sqlite
     .prepare(
       "SELECT id,thesis_id AS thesisId,side,amount,creator_fee AS creatorFee,trading_fee AS tradingFee,platform_profit_fee AS platformProfitFee,created_at AS createdAt FROM orders WHERE user_id='follower' ORDER BY created_at,rowid",
     )
     .all() as PaperOrder[];
   const now = Date.now();
-  const p = paperPerformance(orders, [], 1019542, now);
+  const p = paperPerformance(orders, [], 1019841, now);
   assert.equal(p.tradingFees, 0.5);
-  assert.equal(p.creatorFees, 2.99);
+  assert.equal(p.creatorFees, 0);
   assert.equal(p.platformProfitFees, 0.99);
-  assert.equal(p.performance.profit, 195.42);
-  assert.equal(p.performance.rows[0].realized, 195.42);
+  assert.equal(p.performance.profit, 198.41);
+  assert.equal(p.performance.rows[0].realized, 198.41);
   assert.deepEqual(
     p.performance.points.map((x) => x.value),
-    [10000, 9999.5, 10199.4, 10197.42, 10195.42, 10195.42],
+    [10000, 9999.5, 10199.4, 10198.91, 10198.41, 10198.41],
   );
   const rankings = paperRankings(
     [
       {
         userId: "follower",
-        balance: 1019542,
+        balance: 1019841,
         enrolled: true,
         creator: {
           id: "follower",
@@ -402,8 +402,8 @@ test("partial sales reconcile fees, cost basis, creator share, profile, and rank
     now,
   );
   assert.equal(rankings.excluded, 0);
-  assert.equal(rankings.takes[0].returnPct, 19.542);
-  assert.equal(rankings.investors[0].returnPct, 1.9542);
+  assert.equal(rankings.takes[0].returnPct, 19.841);
+  assert.equal(rankings.investors[0].returnPct, 1.9841);
 });
 
 test("a losing automatic exit charges no exit fee or profit share", async () => {
@@ -418,15 +418,15 @@ test("a losing automatic exit charges no exit fee or profit share", async () => 
 });
 
 
-test('selected rates preserve quarter basis points, cap platform share, and reject invalid fees',()=>{
-  for(const [bps,creatorUnits,platformUnits] of [[0,0,0],[1,3,1],[100,300,100],[200,600,200],[1000,3000,1000],[2000,7000,1000]])assert.deepEqual(feeRates(bps),{creatorUnits,platformUnits});
+test('platform rates preserve quarter basis points and their cap while creator rates stay zero',()=>{
+  for(const [bps,creatorUnits,platformUnits] of [[0,0,0],[1,0,1],[100,0,100],[200,0,200],[1000,0,1000],[2000,0,1000]])assert.deepEqual(feeRates(bps),{creatorUnits,platformUnits});
   assert.equal(feePercent(1),'0.0025%');
   for(const bps of [-1,2001,1.2,NaN,Infinity])assert.throws(()=>selectedFeeBps({performanceFeeBps:bps}),/0% to 20%/);
   assert.throws(()=>readFeeTerms('{"version":2}'),/invalid/);
 });
 
-test('20% total includes 17.5% creator and 2.5% platform; zero fee pays neither',async()=>{
-  for(const [bps,creatorFee,platformProfitFee] of [[2000,3489,498],[200,299,99],[0,0,0]]){
+test('former creator fee selections retain only their platform portion',async()=>{
+  for(const [bps,creatorFee,platformProfitFee] of [[2000,0,498],[200,0,99],[0,0,0]]){
     const f=fixture(),take={...thesis,performanceFeeBps:bps};
     await f.trade('buy',100000,{take,acceptProfitShare:false});
     await f.trade('simulate',1,{take,change:20});
@@ -435,7 +435,7 @@ test('20% total includes 17.5% creator and 2.5% platform; zero fee pays neither'
     assert.equal(f.get('accounts').balance,1019940-creatorFee-platformProfitFee);
     assert.equal(f.get('accounts','creator').balance,1000000+creatorFee);
     const ledger=f.sqlite.prepare("SELECT fee_policy,fee_terms FROM orders WHERE side='sell'").get()!;
-    assert.equal(ledger.fee_policy,'v3');assert.deepEqual(JSON.parse(String(ledger.fee_terms)),JSON.parse(String(f.get('positions').fee_terms)));
+    assert.equal(ledger.fee_policy,'v4');assert.deepEqual(JSON.parse(String(ledger.fee_terms)),JSON.parse(String(f.get('positions').fee_terms)));
   }
 });
 
@@ -456,30 +456,30 @@ test('fee snapshot cannot be changed by creator edits or mixed with new terms',a
   await assert.rejects(f.trade('buy',10000,{take:changed}),/Close/);
   await f.trade('simulate',1,{take:changed,change:20});
   const first=await f.trade('sell',59970,{take:changed}),second=await f.trade('sell',59970,{take:changed});
-  assert.equal(first.creatorFee,747);assert.equal(second.creatorFee,748);
+  assert.equal(first.creatorFee,0);assert.equal(second.creatorFee,0);
   assert.equal(first.platformProfitFee+second.platformProfitFee,498);
   assert.equal(f.get('positions').fee_terms,terms);
-  assert.equal(f.get('accounts').balance,1017947);
+  assert.equal(f.get('accounts').balance,1019442);
 });
 
-test('legacy held positions keep their original 0.5% plus 3% until closed',async()=>{
+test('legacy held positions retire creator charges while keeping their 3% platform fee',async()=>{
   const f=fixture();
   f.sqlite.prepare("INSERT INTO positions(id,user_id,thesis_id,amount,invested,share_eligible,share_creator) VALUES ('legacy','follower','community',120000,100000,1,'creator')").run();
   const sale=await f.trade('sell',120000,{take:{...thesis,performanceFeeBps:2000}});
-  assert.equal(sale.creatorFee,100);assert.equal(sale.platformProfitFee,600);
-  assert.equal(f.sqlite.prepare("SELECT fee_policy FROM orders WHERE side='sell'").get()!.fee_policy,'v2');
+  assert.equal(sale.creatorFee,0);assert.equal(sale.platformProfitFee,600);
+  assert.equal(f.sqlite.prepare("SELECT fee_policy FROM orders WHERE side='sell'").get()!.fee_policy,'v4');
 });
 
 test('re-entry with changed fees recovers losses and never reprices old profits',async()=>{
   const f=fixture(),original={...thesis,performanceFeeBps:200},changed={...thesis,performanceFeeBps:2000};
   async function round(take:Thesis,change:number){await f.trade('buy',100000,{take});await f.trade('simulate',1,{take,change});return f.trade('sell',Number(f.get('positions').amount),{take});}
-  const initial=await round(original,20);assert.equal(initial.creatorFee,299);
+  const initial=await round(original,20);assert.equal(initial.creatorFee,0);
   assert.equal((await round(original,-20)).creatorFee,0);
   assert.equal((await round(changed,10)).creatorFee,0);
   const recovered=await round(changed,30);
   // New epoch starts at $199.40 old high water. Only $198.40 above it is newly eligible.
-  assert.equal(recovered.creatorFee,3472);assert.equal(recovered.platformProfitFee,496);
-  assert.equal(f.get('positions').share_paid,3771);
+  assert.equal(recovered.creatorFee,0);assert.equal(recovered.platformProfitFee,496);
+  assert.equal(f.get('positions').share_paid,0);
 });
 
 test('one-cent partial profit carry survives re-entry without exceeding the selected total',()=>{
@@ -491,7 +491,7 @@ test('one-cent partial profit carry survives re-entry without exceeding the sele
     assert.ok(sale.sharePaid+sale.platformPaid<=Math.floor(n*0.1101));
     p={...p,...sale,amount:101,invested:100};
   }
-  assert.equal(p.sharePaid,17);assert.equal(p.platformPaid,5);
+  assert.equal(p.sharePaid,0);assert.equal(p.platformPaid,5);
 });
 
 test('new rates preserve legacy-exempt losses and zero-fee high water without retroactive charges',()=>{
@@ -501,13 +501,13 @@ test('new rates preserve legacy-exempt losses and zero-fee high water without re
   const first=settlePositionFees({...legacy,feeTerms},12000);
   assert.equal(first.fee,0);assert.equal(first.platformProfitFee,0);
   const second=settlePositionFees({...legacy,...first,feeTerms,amount:12000,invested:10000},12000);
-  assert.equal(second.fee,175);assert.equal(second.platformProfitFee,25);
+  assert.equal(second.fee,0);assert.equal(second.platformProfitFee,25);
   const zeroTerms=JSON.stringify(startFeeTerms({...thesis,performanceFeeBps:0},'follower'));
   const zeroProfit=settlePositionFees({amount:12000,invested:10000,feeTerms:zeroTerms},12000);
   const prior={...zeroProfit,amount:12000,invested:10000,feeTerms:zeroTerms};
   const newTerms=JSON.stringify(startFeeTerms(take,'follower',prior));
   const next=settlePositionFees({...prior,feeTerms:newTerms},12000);
-  assert.equal(next.fee,350);assert.equal(next.platformProfitFee,50);
+  assert.equal(next.fee,0);assert.equal(next.platformProfitFee,50);
   const zeroLoss=settlePositionFees({amount:8000,invested:10000,feeTerms:zeroTerms},8000);
   const loss={...zeroLoss,amount:12000,invested:10000,feeTerms:zeroTerms};
   assert.equal(settlePositionFees({...loss,feeTerms:JSON.stringify(startFeeTerms(take,'follower',loss))},12000).fee,0);
@@ -525,7 +525,7 @@ test('automatic partial exits use saved performance terms despite a creator fee 
   const f=fixture(),take:Thesis={...thesis,performanceFeeBps:1000,allocations:[{symbol:'BTC',weight:100}],exitPlan:{id:'fee-exit',mode:'basket',steps:[{symbol:null,targetPct:10,sellPct:50},{symbol:null,targetPct:50,sellPct:50}],rationale:'Scale out.',origin:'creator',updatedAt:1}};
   await f.trade('buy',100000,{take});
   const sale=await f.trade('simulate',1,{take:{...take,performanceFeeBps:2000},change:20});
-  assert.equal(sale.executionReason,'creator-exit');assert.equal(sale.creatorFee,747);assert.equal(sale.platformProfitFee,249);
+  assert.equal(sale.executionReason,'creator-exit');assert.equal(sale.creatorFee,0);assert.equal(sale.platformProfitFee,249);
   assert.equal(f.get('positions').invested,50000);assert.equal(f.get('positions').amount,59970);
 });
 
@@ -539,4 +539,37 @@ test('fee migration leaves existing private takes and legacy investment promises
   assert.equal(sqlite.prepare('SELECT visibility FROM theses').get()!.visibility,'private');
   assert.equal(sqlite.prepare('SELECT fee_terms FROM positions').get()!.fee_terms,null);
   assert.equal(sqlite.prepare('SELECT amount FROM positions').get()!.amount,10000);sqlite.close();
+});
+
+test('saved creator-fee snapshots stop charging on manual sales and automatic exits without rewriting prior payments',async()=>{
+  for(const automatic of [false,true]){
+    const f=fixture(),take={...thesis,performanceFeeBps:2000};
+    await f.trade('buy',100000,{take});
+    const oldTerms={version:1,creatorUnits:7000,platformUnits:1000,creatorId:'creator',baseHighWater:0,creatorPaidBase:0,platformPaidBase:0};
+    f.sqlite.prepare('UPDATE positions SET fee_terms=?,share_eligible=1,share_creator=?,share_paid=350,platform_paid=50,platform_realized=2000,platform_high_water=2000,execution_state=NULL,take_profit=?').run(JSON.stringify(oldTerms),'creator',automatic?10:null);
+    f.sqlite.prepare("UPDATE accounts SET balance=balance+350 WHERE user_id='creator'").run();
+    f.sqlite.prepare("INSERT INTO orders(id,user_id,thesis_id,side,amount,created_at) VALUES('past-credit','creator','community','creator-income',350,1)").run();
+    const before=Number(f.get('accounts','creator').balance);
+    const move=await f.trade('simulate',1,{take,change:20});
+    const sale=automatic?move:await f.trade('sell',119940,{take});
+    assert.equal(sale.creatorFee,0);
+    assert.equal(sale.platformProfitFee,498);
+    assert.equal(f.get('accounts','creator').balance,before);
+    assert.equal(f.get('positions').share_paid,350);
+    assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM orders WHERE side='creator-income'").get()!.n,1);
+    assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM creator_earnings').get()!.n,0);
+    assert.equal(positionFeeRates({amount:120000,invested:100000,feeTerms:JSON.stringify(oldTerms)}).creatorUnits,0);
+    assert.equal(readFeeTerms(JSON.stringify(oldTerms))?.creatorId,null);
+  }
+});
+
+test('retiring a saved creator fee does not prevent adding to an otherwise unchanged position',async()=>{
+  const f=fixture();
+  await f.trade('buy',100000);
+  const terms=JSON.parse(String(f.get('positions').fee_terms));
+  f.sqlite.prepare('UPDATE positions SET fee_terms=?,share_eligible=1,share_creator=?').run(JSON.stringify({...terms,creatorUnits:600,creatorId:'creator'}),'creator');
+  await f.trade('buy',10000);
+  assert.equal(f.get('positions').amount,109945);
+  assert.equal(f.get('positions').share_eligible,0);
+  assert.equal(f.get('positions').share_creator,null);
 });

@@ -60,6 +60,6 @@ export function LeaderboardView({user,onCreator,onDiscover,onEditCreator}:Props)
       </table>:<div className="weekly-board-empty"><h2>No results this week</h2><p>Investment P&L appears here once people join the leaderboard.</p><button className="outline" onClick={onDiscover}>Explore takes <ArrowRight size={14}/></button></div>}
     </>}
     <p className="weekly-board-note">{showSample?'Sample scores are illustrative, separate from recorded investment results.':'Demo investment P&L · Gains and losses after fees.'}{!showSample&&data&&<span> Updated <time dateTime={new Date(data.checkedAt).toISOString()}>{new Date(data.checkedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time>.</span>}</p>
-    <details className="weekly-board-method"><summary>How P&L is counted</summary><p>Realized and unrealized investment gains since Monday at 00:00 UTC, after trading and creator fees. Funding, creator earnings and archived prediction cash flows don’t count. Each new week starts from the current value of open positions, so earlier gains don’t carry over. Equal P&L shares a rank.</p></details>
+    <details className="weekly-board-method"><summary>How P&L is counted</summary><p>Realized and unrealized investment gains since Monday at 00:00 UTC, after recorded fees. Funding, past creator earnings and archived prediction cash flows don’t count. Each new week starts from the current value of open positions, so earlier gains don’t carry over. Equal P&L shares a rank.</p></details>
   </section>;
 }

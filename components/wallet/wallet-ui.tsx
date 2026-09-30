@@ -593,7 +593,7 @@ export function LiveTradePanel({
         </button>
         <p className="trading-fee-footnote">
           {WALLET_TRADE_FEES_READY
-            ? "0.05% entry fee and the take’s published performance fee, plus network and route fees."
+            ? "0.05% entry fee and the take’s platform performance fee, plus network and route fees."
             : WALLET_TRADE_SETUP_MESSAGE}
         </p>
         <div className="wallet-exit-note">

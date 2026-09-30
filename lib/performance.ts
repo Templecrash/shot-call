@@ -14,7 +14,7 @@ export type PaperOrder = {
   creatorFee?: number;
   tradingFee?: number;
   platformProfitFee?:number;
-  feePolicy?:'legacy'|'v2'|'v3';
+  feePolicy?:'legacy'|'v2'|'v3'|'v4';
   executionMode?: "spot" | "perps";
   leverage?: number;
   executionReason?: string | null;

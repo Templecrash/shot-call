@@ -2,15 +2,7 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { CreatorAvatar } from "@/components/creator";
-import { dollars } from "@/lib/data";
 import {MAX_VISIBLE_INVESTORS,type ThesisInvestment} from "@/lib/thesis-investments";
-
-const compactDollars = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 
 export function CardInvestors({
   investment,
@@ -30,19 +22,15 @@ export function CardInvestors({
             {loading ? "Loading investors…" : "Investor data unavailable"}
           </span>
         </span>
-        <span className="card-aum">
-          <strong>—</strong>
-          <span>AUM</span>
-        </span>
       </div>
     );
-  const { investors, aum, profiles } = investment;
+  const { investors, profiles } = investment;
   const visibleProfiles = profiles.slice(0,MAX_VISIBLE_INVESTORS);
   const others = Math.max(0,investors-visibleProfiles.length);
   return (
     <div
       className="card-investors"
-      aria-label={`${investors} ${investors === 1 ? "investor" : "investors"}, ${dollars(aum)} assets under management`}
+      aria-label={`${investors} ${investors === 1 ? "investor" : "investors"}`}
     >
       <div className="card-investor-people">
         <div className="card-investor-stack" aria-label="Featured investors by position size">
@@ -92,15 +80,6 @@ export function CardInvestors({
           <span>{investors === 1 ? "investor" : "investors"}</span>
         </span>
       </div>
-      <span
-        className="card-aum"
-        title={`${dollars(aum)} in open investments`}
-      >
-        <strong>
-          {aum >= 1_000_000 ? compactDollars.format(aum / 100) : dollars(aum)}
-        </strong>
-        <span>AUM</span>
-      </span>
     </div>
   );
 }

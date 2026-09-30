@@ -1,7 +1,7 @@
 # Shot Call — source handoff
 
-Snapshot: published Sites version 77, updated September 30, 2026.
-Source commit: `b3bfb8069a936f75b1160b94178a70115cc9feab`.
+Snapshot: published Sites version 78, updated September 30, 2026.
+Source commit: `e1590f1ea70795c6e36cce5e5d603241d24b88fb`.
 Current site: https://supertake-crypto-sascha.saschadarius.chatgpt.site
 
 Read this file first. README.md contains development history and some older feature descriptions; the setup and current-state notes here take precedence.
@@ -48,7 +48,8 @@ Curated examples and simulated investment flows are available without an AI cred
 - Demo wallet and simulated trading; real-money execution remains disabled by the trading-policy gate.
 - Spot/perp exposure, direction, leverage and exit rules are set by the call creator. Counter calls generate eligible opposite exposures using verified instrument metadata; external Polymarket outcomes remain separate instruments.
 - Internal sentiment betting has been removed. Profiles, following, invitations, weekly P&L leaderboard, and P&L sharing are included.
-- Current fees: 0.05% on new investment capital. Creators choose a total performance fee of 0–20% of eligible realized profit; the platform takes 25% of that fee, capped at 2.5% of profit, with the remainder going to the creator. Legacy positions retain their saved fee terms. Older README references to a 2% trading fee and fixed profit shares are historical.
+- Current fees: 0.05% on new investment capital. Call creators receive no profit fees, including future sales or automatic exits on existing positions. Creator fee settings and earnings promotion are removed. Platform performance fees retain their existing rates and loss-recovery accounting; new calls use the default 0.5% platform rate. Historical fee payments, credits and P&L are preserved. Older README references to creator profit shares and a 2% trading fee are historical.
+- Feed cards retain investor counts and profile pictures; AUM is no longer displayed.
 
 Key directories: `app/` (pages and API routes), `components/` (UI), `lib/` (domain logic), `drizzle/` (schema migrations), `public/` (assets), `tests/`, `build/`, and `scripts/`.
 
