@@ -62,7 +62,14 @@ npm run build
 
 ## Hosting and collaboration
 
-The current source is stored in Sites-managed Git, not a connected GitHub repository. This archive can be imported into a public GitHub repository, as requested. Anyone will then be able to view or clone the source, including Eythan. An invitation is only needed if he should have direct write access; that can be granted through repository Settings → Collaborators. No repository, invitation, or email has been created or sent as part of preparing this archive.
+The public source repository is https://github.com/Templecrash/shot-call. This repository starts from a clean snapshot of published Sites version 76, including the Shot Call name and latest countertrade layout. Anyone can view or clone it; collaborators need a separate invitation to push changes. Future Sites edits are not automatically synchronized to this repository.
+
+```sh
+git clone https://github.com/Templecrash/shot-call.git
+cd shot-call
+```
+
+Then follow the local setup above.
 
 Source sharing does not transfer access to the live Sites project, domain, databases, secrets, or connector authorization. `.openai/hosting.json` retains the logical DB/BUCKET bindings required by the build. The original project identifier is omitted from this sharing copy; register a separate project for independent hosting.
 
