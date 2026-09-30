@@ -23,6 +23,6 @@ export function mergedCatalog(
   const dynamic: Record<string, Token> = {};
   for (const t of theses)
     for (const [key, token] of Object.entries(t.tokens || {}))
-      if (key.startsWith("cg:")) dynamic[key] = token;
+      if (key.startsWith("cg:") || key.startsWith("issuer:ondo:")) dynamic[key] = token;
   return { ...dynamic, ...TOKENS };
 }

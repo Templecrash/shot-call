@@ -48,7 +48,7 @@ export function safeRemoteIcon(value?: string): string | null {
   try {
     const url = new URL(value);
     return url.protocol === "https:" && !url.username && !url.password && !url.port &&
-      ["assets.coingecko.com", "coin-images.coingecko.com", "s2.coinmarketcap.com"].includes(url.hostname)
+      ["assets.coingecko.com", "coin-images.coingecko.com", "s2.coinmarketcap.com", "cdn.ondo.finance"].includes(url.hostname)
       ? url.href : null;
   } catch { return null; }
 }

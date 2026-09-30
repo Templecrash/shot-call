@@ -16,6 +16,7 @@ export const candidateSchema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]{0,100}$/)
     .nullable(),
   exposure: z.enum(["Direct", "Platform", "Adjacent", "Infrastructure"]),
+  instrument: z.enum(["crypto", "stock"]).optional(),
   reason: z.string().min(15).max(700),
   risk: z.string().min(10).max(500),
   source_url: url,
@@ -133,6 +134,7 @@ export const REPORT_JSON_SCHEMA = obj({
         type: "string",
         enum: ["Direct", "Platform", "Adjacent", "Infrastructure"],
       },
+      instrument: { type: "string", enum: ["crypto", "stock"] },
       reason: string(15, 700),
       risk: string(10, 500),
       source_url: sourceUrl,

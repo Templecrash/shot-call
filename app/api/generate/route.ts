@@ -9,6 +9,7 @@ import {
   researchTake,
 } from "@/lib/ai/provider";
 import { fetchCoin, resolveResearch } from "@/lib/ai/resolve";
+import { createStockLookup } from "@/lib/ai/stock-catalog";
 import {COUNTER_MODEL} from '@/lib/counter-generation';
 const json = (body: unknown, status = 200) =>
   Response.json(body, {
@@ -207,6 +208,8 @@ export async function POST(req: Request) {
       body.take,
       generationId,
       (id) => fetchCoin(id, env.COINGECKO_API_KEY),
+      Date.now(),
+      createStockLookup(),
     );
     await db
       .prepare(

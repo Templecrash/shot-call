@@ -1,7 +1,7 @@
 # Shot Call — source handoff
 
-Snapshot: published Sites version 76, prepared September 30, 2026.
-Source commit: `58412217de9a154f841eec7e30765a3975b07986`.
+Snapshot: published Sites version 77, updated September 30, 2026.
+Source commit: `b3bfb8069a936f75b1160b94178a70115cc9feab`.
 Current site: https://supertake-crypto-sascha.saschadarius.chatgpt.site
 
 Read this file first. README.md contains development history and some older feature descriptions; the setup and current-state notes here take precedence.
@@ -39,7 +39,7 @@ AI token research, evidence, suggested exits, and artwork require a server-side 
 
 For local development, use an ignored `.env` file with Worker environment bindings. Optional settings are `OPENAI_MODEL`, `OPENAI_IMAGE_MODEL`, and `COINGECKO_API_KEY`. Production secrets must be configured independently in the deployment environment. Never put credentials in browser code or commit them. If using `.dev.vars` instead, add `.dev.vars*` to your ignore rules first.
 
-Curated examples and simulated investment flows are available without an AI credential. Live OpenAI research and counter artwork have been exercised on the original deployment. During token-data outages, exact identities already in the reviewed catalog can be used with source and ticker checks; unknown identities remain on the watchlist. Catalog fallback is disclosed in the research notes.
+Curated examples and simulated investment flows are available without an AI credential. Live OpenAI research and counter artwork have been exercised on the original deployment. During token-data outages, exact identities already in the reviewed catalog can be used with source and ticker checks; unknown identities remain on the watchlist. Catalog fallback is disclosed in the research notes. Tokenized-stock discovery also verifies exact Ondo asset identities against the issuer-owned token registry, independently of CoinGecko; issuer-verified instruments retain source, contract, network and logo metadata. Instruments without a verified CoinGecko ID do not have an in-app market-data chart.
 
 ## Architecture and current behavior
 

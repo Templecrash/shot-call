@@ -4,6 +4,7 @@ import type { AIResearch } from "./types";
 import { publicUrl, type AICandidate } from "./schema";
 import type { ProviderResult } from "./provider";
 import {fullExposure,isStablecoin,wantsStablecoins} from "../allocations";
+import type { StockLookup } from "./stock-catalog";
 const KNOWN_IDS: Record<string, string> = {
   bitcoin: "BTC",
   ethereum: "ETH",
@@ -35,6 +36,7 @@ export type CoinMetadata = {
   links?: { homepage?: string[] };
   platforms?: Record<string, string>;
   asset_platform_id?: string | null;
+  categories?: string[];
   preview_listing?: boolean;
   verification?: "reviewed-catalog";
   identitySource?: string;
@@ -43,6 +45,10 @@ export const normalizeUrl = (s: string) => {
   try {
     const u = new URL(s);
     u.hash = "";
+    u.hostname = u.hostname.replace(/^www\./, "");
+    for (const key of [...u.searchParams.keys()])
+      if (/^utm_/i.test(key) || ["fbclid", "gclid"].includes(key)) u.searchParams.delete(key);
+    u.searchParams.sort();
     return u.href.replace(/\/$/, "");
   } catch {
     return "";
@@ -70,6 +76,10 @@ export function checkedToken(
   c: AICandidate,
   coin: CoinMetadata,
 ): { key: string; token: Token } | null {
+  const isStock = coin.categories?.some(category => /tokenized[^a-z]*stocks?|stocks?[^a-z]*tokens?/i.test(category)) || false;
+  // Instrument type changes execution permissions. A model label cannot turn
+  // a native/governance token into a security or bypass crypto short checks.
+  if (c.instrument === "stock" && !isStock) return null;
   if (
     coin.id !== c.coingecko_id ||
     coin.symbol?.toUpperCase() !== c.symbol.toUpperCase() ||
@@ -116,6 +126,7 @@ export function checkedToken(
         Infrastructure: "Enabling infrastructure",
       }[c.exposure],
       kind: c.exposure,
+      ...(isStock ? { instrument: "stock" as const, fit: "Tokenized stock" } : {}),
       reason: c.reason,
       risk: c.risk,
       source: c.source_url,
@@ -180,6 +191,7 @@ export async function resolveResearch(
   id: string,
   lookup: (id: string) => Promise<CoinMetadata | null>,
   now = Date.now(),
+  stockLookup?: StockLookup,
 ): Promise<{ thesis: Thesis | null; research: AIResearch }> {
   const { report, sources, model } = provider;
   const research: AIResearch = {
@@ -210,6 +222,7 @@ export async function resolveResearch(
   let removedWeight = stablecoins ? 0 : report.reserve_weight;
   const seen = new Set<string>();
   const catalogVerified = new Set<string>();
+  const issuerVerified = new Set<string>();
   // Two concurrent metadata reads avoid a burst against the public data API.
   for (let i = 0; i < report.candidates.length; i += 2) {
     const group = report.candidates.slice(i, i + 2);
@@ -221,10 +234,12 @@ export async function resolveResearch(
         if (!sourceObserved(c.source_url, sources))
           reason =
             "The supplied source was not present in the AI’s web research.";
-        if (!c.coingecko_id)
-          reason = reason || "No unique market-data identity was found.";
         let match: { key: string; token: Token } | null = null;
-        if (!reason && c.coingecko_id) {
+        if (!reason && stockLookup) {
+          match = await stockLookup(c);
+          if (match) issuerVerified.add(match.token.symbol);
+        }
+        if (!reason && !match && c.coingecko_id) {
           const coin = await lookup(c.coingecko_id);
           match = coin ? checkedToken(c, coin) : null;
           if (match && coin?.verification === "reviewed-catalog") catalogVerified.add(c.symbol);
@@ -233,6 +248,8 @@ export async function resolveResearch(
               ? "The ticker, project website or token identity could not be matched."
               : "The token-data service could not verify this identity. It may be unavailable or rate-limited.";
         }
+        if (!reason && !match && !c.coingecko_id)
+          reason = "No verified issuer listing or unique market-data identity was found.";
         return { c, match, reason };
       }),
     );
@@ -267,6 +284,7 @@ export async function resolveResearch(
     }
   }
   if (catalogVerified.size) research.notes = [research.notes, `The live token-data service was unavailable. ${[...catalogVerified].join(", ")} identities were matched against the app’s reviewed project catalog and the sources found in this research; they were not freshly verified by CoinGecko.`].filter(Boolean).join(" ");
+  if (issuerVerified.size) research.notes = [research.notes, `${[...issuerVerified].join(", ")} verified against the issuer’s current token registry. These are tokenized stock exposures; live access depends on issuer terms and eligibility.`].filter(Boolean).join(" ");
   if (!allocations.length) return { thesis: null, research };
   allocations = fullExposure(allocations);
   if (removedWeight > 0) {
