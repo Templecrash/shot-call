@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `demo_wallet_connected` integer DEFAULT 0 NOT NULL;

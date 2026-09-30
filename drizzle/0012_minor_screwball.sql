@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `default_buy_amount` integer DEFAULT 10000 NOT NULL;

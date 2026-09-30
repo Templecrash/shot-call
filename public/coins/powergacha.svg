@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+    <defs>
+      <clipPath id="circ"><circle cx="500" cy="500" r="500"></circle></clipPath>
+      <radialGradient id="r" cx="36%" cy="28%" r="78%">
+        <stop offset="0%" stop-color="#e8483f"></stop>
+        <stop offset="55%" stop-color="#c4302b"></stop>
+        <stop offset="100%" stop-color="#8a1f1c"></stop>
+      </radialGradient>
+      
+    </defs>
+    <g clip-path="url(#circ)">
+      
+      <g transform="translate(72, 70) scale(3.6)">
+        <g transform="rotate(-15 110 116)">
+          <rect x="56" y="38" width="108" height="148" rx="6" fill="#d8c9a8" stroke="#161311" stroke-width="6"></rect>
+        </g>
+        <g transform="rotate(-4 130 124)">
+          <rect x="74" y="44" width="108" height="148" rx="6" fill="#f3ead8" stroke="#161311" stroke-width="6"></rect>
+          <rect x="82" y="52" width="92" height="20" fill="#c4302b" rx="2"></rect>
+        </g>
+        <circle cx="120" cy="140" r="58" fill="url(#r)" stroke="#161311" stroke-width="6"></circle>
+        <text x="123" y="143" class="pg" text-anchor="middle" dominant-baseline="central" font-size="72" fill="#161311" fill-opacity="0.35" transform="matrix(1 0 -0.105 1 27.51 0)" style="letter-spacing:-0.09em">PG</text>
+        <text x="120" y="140" class="pg" text-anchor="middle" dominant-baseline="central" font-size="72" fill="#f3ead8" stroke="#161311" stroke-width="5" stroke-linejoin="round" paint-order="stroke fill" transform="matrix(1 0 -0.105 1 27.2 0)" style="letter-spacing:-0.09em">PG</text>
+        <ellipse cx="96" cy="115" rx="13" ry="6" fill="#ffffff" fill-opacity="0.38" transform="rotate(-28 96 115)"></ellipse>
+      </g>
+    </g>
+  </svg>

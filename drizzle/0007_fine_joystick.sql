@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `trading_fee` integer DEFAULT 0 NOT NULL;

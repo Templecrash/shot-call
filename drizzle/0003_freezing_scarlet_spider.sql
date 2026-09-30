@@ -1,0 +1,1 @@
+ALTER TABLE `creator_profiles` ADD `leaderboard_opt_in` integer DEFAULT 0 NOT NULL;
