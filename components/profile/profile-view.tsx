@@ -4,7 +4,6 @@ import { usePeople } from "@/components/people/people-provider";
 import { ProductDisclosure } from "@/components/product-disclosure";
 import {ProfileSettings} from './profile-settings';
 import { PnlShareDialog } from '@/components/pnl/pnl-share-dialog';
-import { InviteManager } from '@/components/invites/invite-manager';
 import type { TradePnl } from '@/lib/trade-pnl';
 import { Users, Share2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -137,7 +136,6 @@ export function ProfileView(props: ProfileProps) {
         <button className="text-button profile-manage-calls" onClick={props.onMyTakes}>Manage my calls</button>
       </ProductDisclosure>}
       {props.user&&<ProductDisclosure title="Settings" meta="Trading preferences" defaultOpen><ProfileSettings key={`${props.user.id}:${props.defaultBuyAmount}`} amount={props.defaultBuyAmount} onSaved={props.onBuyAmountSaved}/></ProductDisclosure>}
-      {props.user&&<InviteManager key={props.user.id}/>}
       <PaperProfileView key={`${props.user?.id}:${props.revision}`} {...props}/>
 
     </section>

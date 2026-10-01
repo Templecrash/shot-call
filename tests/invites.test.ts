@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync,readdirSync} from 'node:fs';
 import {initializeInviteCohort,isMember,createMemberInvite,memberInvitesState,redeemInvite,previewInvite,inviteCode,inviteReturnTo,InviteError} from '../lib/invites';
-import {inviteAccess,isPublicInvitePath} from '../lib/invite-access';
+import {NextRequest} from 'next/server';
+import {proxy} from '../proxy';
 
 function fixture(){
   const sqlite=new DatabaseSync(':memory:');for(const file of readdirSync(new URL('../drizzle/',import.meta.url)).filter(n=>n.endsWith('.sql')).sort())sqlite.exec(readFileSync(new URL(`../drizzle/${file}`,import.meta.url),'utf8'));
@@ -22,7 +23,7 @@ function fixture(){
   }} as unknown as D1Database;
   return {db,sqlite,fail:(index:number)=>{failAt=index;}};
 }
-test('existing accounts retain access, and creating an account later cannot bypass an invite',async()=>{
+test('legacy invite membership preserves its original cohort without enrolling later accounts',async()=>{
   const f=fixture();await initializeInviteCohort(f.db,10);assert.equal(await isMember(f.db,'existing'),true);
   f.sqlite.prepare('INSERT INTO accounts(user_id) VALUES(?)').run('late');await initializeInviteCohort(f.db,20);
   assert.equal(await isMember(f.db,'late'),false);assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM app_members').get()!.n,1);f.sqlite.close();
@@ -54,15 +55,16 @@ test('membership creation and invite redemption roll back together on failure',a
   await assert.rejects(redeemInvite(f.db,'new',link.code),/Temporary failure/);assert.equal(await isMember(f.db,'new'),false);assert.equal((await previewInvite(f.db,link.code))?.available,true);
   f.fail(-1);await redeemInvite(f.db,'new',link.code);assert.equal(await isMember(f.db,'new'),true);f.sqlite.close();
 });
-test('the server gate covers app pages and APIs, with only explicit public media exceptions',async()=>{
-  const f=fixture(),signed=(id:string)=>({'oai-authenticated-user-id':id,'oai-authenticated-user-email':'member@example.test'});
-  const anonymous=await inviteAccess(new Request('https://calledit.test/take/private?tab=invest'),f.db);assert.equal(anonymous?.status,307);assert.equal(new URL(anonymous!.headers.get('location')!).pathname,'/invite');assert.equal(new URL(anonymous!.headers.get('location')!).searchParams.get('next'),'/take/private?tab=invest');
-  assert.equal((await inviteAccess(new Request('https://calledit.test/api/state'),f.db))?.status,401);
-  assert.equal((await inviteAccess(new Request('https://calledit.test/api/state',{headers:signed('stranger')}),f.db))?.status,403);
-  assert.equal(await inviteAccess(new Request('https://calledit.test/api/state',{headers:signed('existing')}),f.db),null);
-  for(const path of ['/api/invites','/api/state','/api/generate','/api/pnl','/api/creators/editorial','/api/creators/editorial/banner'])assert.equal(isPublicInvitePath(path),false);
-  for(const path of ['/api/invites/redeem','/api/pnl/1234-abcd/image','/api/creators/editorial/avatar'])assert.equal(isPublicInvitePath(path),true);
-  f.sqlite.close();
+test('demo pages and APIs pass through without membership while personal responses stay uncached',()=>{
+  const identities:HeadersInit[]=[{}, {'oai-authenticated-user-id':'new-user','oai-authenticated-user-email':'new@example.test'}];
+  for(const headers of identities){
+    for(const path of ['/','/take/majors-bottom','/creator/editorial','/api/state','/api/demo-wallet','/api/generate']){
+      const response=proxy(new NextRequest('https://calledit.test'+path,{headers}));
+      assert.equal(response.headers.get('x-middleware-next'),'1');
+      assert.equal(response.headers.get('location'),null);
+      assert.equal(response.headers.get('cache-control'),'private, no-store');
+    }
+  }
 });
 test('invalid links and external return paths cannot create membership or redirect outside the app',()=>{
   const code='a'.repeat(48);assert.equal(inviteCode(`https://calledit.test/invite/${code}`),code);assert.equal(inviteCode('anything'),null);assert.equal(inviteCode('b'.repeat(47)),null);

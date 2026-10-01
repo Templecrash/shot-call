@@ -141,5 +141,5 @@ test('platform profit share uses the new default 0.5% after entry cost, recovers
  assert.equal((await round(10)).platformProfitFee,50);
  assert.equal(f.get('positions').platform_paid,198);
  assert.equal(f.get('positions').platform_realized,39679);
- assert.equal(f.get('accounts','creator').balance,1000595);
+ assert.equal(f.get('accounts','creator').balance,1000000); // Creator profit fees have been retired.
 });
